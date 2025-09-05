@@ -8,6 +8,7 @@ Table of Contents
   - [Adding Commands](#commands)
   - [Added Events](#events)
   - [UI Stuff](#ui-stuff)
+- [Git Stuff](#commits-and-pushes-and-pulls)
 
 
 ## Installation
