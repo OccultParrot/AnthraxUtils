@@ -168,3 +168,53 @@ git push origin main
 ```
 
 If you have a file or directory you don't want to ever be commited, add it to the `.gitignore` file.
+
+Actual git push I just did:
+```bash
+
+Tommy@DESKTOP-KVEMU9J MINGW64 /c/Dev/PYTHON/AnthraxUtils (main)
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+        new file:   .env.example
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   .env.example
+        modified:   .gitignore
+        modified:   README.md
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        main.py
+
+
+Tommy@DESKTOP-KVEMU9J MINGW64 /c/Dev/PYTHON/AnthraxUtils (main)
+$ git add -A
+warning: in the working copy of '.env.example', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'README.md', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'main.py', CRLF will be replaced by LF the next time Git touches it
+
+Tommy@DESKTOP-KVEMU9J MINGW64 /c/Dev/PYTHON/AnthraxUtils (main)
+$ git commit -m "Added boiler plate, Wrote docs"
+[main 6e3f7ad] Added boiler plate, Wrote docs
+ 4 files changed, 205 insertions(+), 1 deletion(-)
+ create mode 100644 .env.example
+ create mode 100644 main.py
+
+Tommy@DESKTOP-KVEMU9J MINGW64 /c/Dev/PYTHON/AnthraxUtils (main)
+$ git push origin main
+Enumerating objects: 9, done.
+Counting objects: 100% (9/9), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (6/6), 3.60 KiB | 1.80 MiB/s, done.
+Total 6 (delta 1), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+To github.com:OccultParrot/AnthraxUtils.git
+   933972f..6e3f7ad  main -> main
+```
