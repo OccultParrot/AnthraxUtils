@@ -47,7 +47,7 @@ Age in in-game years: `{age //4} year(s)`
         await interaction.response.send_message(embed=embed, ephemeral=True)
         
     except ValueError as e:
-        await interaction.response.send_message("Invalid date format. Please use DD-MM-YYYY.", ephemeral=True)
+        await interaction.response.send_message("Invalid date format. Please use YYYY-MM-DD.", ephemeral=True)
         return
     
 
