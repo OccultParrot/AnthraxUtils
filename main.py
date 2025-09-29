@@ -85,6 +85,9 @@ async def help_command(interaction: Interaction):
     for name in commands:
         embed.add_field(name=name, value=commands[name], inline=True)
 
+    embed.set_footer(
+        text="If you have any ideas for more quality of life commands, DM OccultParrot!"
+    )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
