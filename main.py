@@ -85,7 +85,7 @@ async def help_command(interaction: Interaction):
     for name in commands:
         embed.add_field(name=name, value=commands[name], inline=True)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # == Running the bot ==
