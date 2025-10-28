@@ -1,0 +1,37 @@
+[
+  {
+    "species": "A",
+    "lifeStages": [
+      {
+        "minAge": 4,
+        "title": "Stationary"
+      },
+      {
+        "minAge": 6,
+        "title": "Elder"
+      }
+    ]
+  },
+  {
+    "species": "B",
+    "lifeStages": [
+      {
+        "minAge": 4,
+        "title": "Sterile"
+      },
+      {
+        "minAge": 6,
+        "title": "Elder"
+      }
+    ]
+  },
+  {
+    "species": "C",
+    "lifeStages": [
+      {
+        "minAge": 5,
+        "title": "Elder"
+      }
+    ]
+  }
+]
