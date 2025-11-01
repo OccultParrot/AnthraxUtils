@@ -31,9 +31,12 @@ async def on_ready():
 @client.tree.command(name="calculate-age", description="Calculate the age of your dino, using their birthdate.")
 @app_commands.describe(birthdate="In YYYY-MM-DD format")
 async def calculate_age(interaction: Interaction, birthdate: str):
+    shutdown_date = datetime.date(2025, 10, 12)
     try:
         birth_date = datetime.datetime.fromisoformat(birthdate).date()
         difference = abs((birth_date - datetime.date.today()).days)
+        if shutdown_date < datetime.date.today():
+            difference -= 15
         age = difference // 7
         
         embed = Embed(title="Age of Dino", description=f"""\
