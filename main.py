@@ -6,7 +6,7 @@ import discord
 from dotenv import load_dotenv
 from markdown_it.rules_core import inline
 from rich.console import Console
-from discord import Client, Intents, app_commands, Object, Interaction, Embed
+from discord import Client, Intents, app_commands, Object, Interaction, Embed, Message
 
 load_dotenv()
 console = Console()
@@ -15,6 +15,7 @@ console = Console()
 class AnthraxUtilsClient(Client):
     def __init__(self):
         intents = Intents.default()
+        intents.message_content = True
         super().__init__(intents=intents)
 
         self.lifespans = {}
@@ -41,6 +42,12 @@ client = AnthraxUtilsClient()
 async def on_ready():
     console.print(f"Logged in as [green]{client.user.name}[/green]", justify="center")
 
+@client.event
+async def on_message(message: Message):
+    if message.author.id == 767047725333086209:
+        if "what commands" in message.content.lower():
+            help_msg = help_embed()
+            await message.channel.send(embed=help_msg)
 
 # TODO: Find cleaner way to select date, maybe 3 int inputs for day, month, year?
 # TODO: Add back species to the description and function declaration once elder stuff is done
@@ -92,7 +99,8 @@ async def calculate_age(interaction: Interaction, day: int, month: int, year: in
         }
         # Snagging the 20 messages
         try:
-            async for message in client.get_guild(1374722200053088306).get_channel(1383845771232678071).history(limit=20, around=birth_date):
+            async for message in client.get_guild(1374722200053088306).get_channel(1383845771232678071).history(
+                    limit=20, around=birth_date):
                 # If the message date is within 1 day of the birthdate, check for season keywords
                 if message.created_at.date() <= birth_date.date():
                     for key in seasons.keys():
@@ -105,7 +113,6 @@ async def calculate_age(interaction: Interaction, day: int, month: int, year: in
         # To catch discord errors (Things like impossible dates, etc.) Will just default to "Unknown" if error occurs.
         except Exception as e:
             print(f"Error fetching birth season messages: {e}")
-
 
         embed = Embed(
             # title=f"{current_lifestage["stage"] + " " if current_lifestage else ""}{species.title()}'s Age",
@@ -136,8 +143,10 @@ Birth Season: `{birth_season_key.title() if birth_season_key else "Unknown"}` {s
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     except ValueError as e:
-        await interaction.response.send_message("Invalid date format. Please check that your inputs are actual dates!.", ephemeral=True)
+        await interaction.response.send_message("Invalid date format. Please check that your inputs are actual dates!.",
+                                                ephemeral=True)
         return
+
 
 # TODO: Uncomment once elder stuff is working
 # @calculate_age.autocomplete("species")
@@ -161,6 +170,10 @@ async def species_autocomplete(_: Interaction, current: str) -> list[app_command
 
 @client.tree.command(name="help", description="Lists all available commands")
 async def help_command(interaction: Interaction):
+    await interaction.response.send_message(embed=help_embed(), ephemeral=True)
+
+
+def help_embed():
     embed = Embed(
         title="AnthraxUtils Commands",
         description="Here are all the commands available in AnthraxUtils!",
@@ -177,7 +190,7 @@ async def help_command(interaction: Interaction):
     embed.set_footer(
         text="If you have any ideas for more quality of life commands, DM OccultParrot!"
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    return embed
 
 
 # == Running the bot ==
