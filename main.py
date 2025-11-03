@@ -94,7 +94,7 @@ async def calculate_age(interaction: Interaction, day: int, month: int, year: in
         try:
             async for message in client.get_guild(1374722200053088306).get_channel(1383845771232678071).history(limit=20, around=birth_date):
                 # If the message date is within 1 day of the birthdate, check for season keywords
-                if abs((message.created_at.date() - birth_date.date()).days) <= 1:
+                if message.created_at.date() <= birth_date.date():
                     for key in seasons.keys():
                         if key in message.content.lower():
                             birth_season_key = key
