@@ -1,8 +1,10 @@
 import os
 import datetime
+import json
 
 import discord
 from dotenv import load_dotenv
+from markdown_it.rules_core import inline
 from rich.console import Console
 from discord import Client, Intents, app_commands, Object, Interaction, Embed
 
@@ -15,12 +17,20 @@ class AnthraxUtilsClient(Client):
         intents = Intents.default()
         super().__init__(intents=intents)
 
+        self.lifespans = {}
+        self.load_configs()
+
         self.guild_id = Object(id=os.getenv("GUILD_ID"))
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self) -> None:
         self.tree.copy_global_to(guild=self.guild_id)
         await self.tree.sync(guild=self.guild_id)
+
+    def load_configs(self):
+        with open("config/lifespans.json", "r") as f:
+            self.lifespans = json.load(f)
+        console.print(f"Loaded [yellow i]{len(self.lifespans)}[/] lifespan entries.", style="green")
 
 
 client = AnthraxUtilsClient()
@@ -32,14 +42,19 @@ async def on_ready():
     console.print(f"Logged in as [green]{client.user.name}[/green]", justify="center")
 
 
-@client.tree.command(
-    name="calculate-age",
-    description="Calculate the age of your dino, using their birthdate.",
-)
-@app_commands.describe(birthdate="In YYYY-MM-DD format")
-async def calculate_age(interaction: Interaction, birthdate: str):
-    print(f"Calculating age for {interaction.user.display_name}...")
-    shutdown_date = datetime.date(2025, 10, 12)
+# TODO: Find cleaner way to select date, maybe 3 int inputs for day, month, year?
+# TODO: Add back species to the description and function declaration once elder stuff is done
+@client.tree.command(name="calculate-age", description="Calculate the age of your dino, using their birthdate.")
+@app_commands.describe(day="The day the dinosaur was born", month="The month the dinosaur was born",
+                       year="The year the dinosaur was born")
+async def calculate_age(interaction: Interaction, day: int, month: int, year: int):
+    # Getting the lifestages for the selected species.
+    # lifestages = []
+    # for spec in client.lifespans:
+    #     if spec["species"].lower() == species.lower():
+    #         lifestages = spec["lifeStages"]
+    #         break
+
     try:
         birth_date = datetime.datetime.fromisoformat(birthdate).date()
         difference = abs((birth_date - datetime.date.today()).days)
@@ -47,11 +62,44 @@ async def calculate_age(interaction: Interaction, birthdate: str):
             difference -= 15
         age = difference // 7
 
+        # current_lifestage = None
+        # for stage in lifestages:
+        #     if age >= stage["minAge"]:
+        #         current_lifestage = stage
+
+        # Section for checking what season the dino was born in.
+        birth_season_key = None
+        seasons = {
+            "spring": ":cherry_blossom:",
+            "summer": ":sun:",
+            "autumn": ":maple_leaf:",
+            "fall": ":maple_leaf:",
+            "winter": ":snowflake:",
+        }
+        # Snagging the 20 messages
+        try:
+            async for message in client.get_guild(1374722200053088306).get_channel(1383845771232678071).history(limit=20, around=birth_date):
+                # If the message date is within 1 day of the birthdate, check for season keywords
+                if abs((message.created_at.date() - birth_date.date()).days) <= 1:
+                    for key in seasons.keys():
+                        if key in message.content.lower():
+                            birth_season_key = key
+                            break
+                    # Break outta the loop once we have our first match
+                    if birth_season_key:
+                        break
+        # To catch discord errors (Things like impossible dates, etc.) Will just default to "Unknown" if error occurs.
+        except Exception as e:
+            print(f"Error fetching birth season messages: {e}")
+
+
         embed = Embed(
-            title="Age of Dino",
+            # title=f"{current_lifestage["stage"] + " " if current_lifestage else ""}{species.title()}'s Age",
+            title=f"Dinosaur's Age",
             description=f"""\
 Age in Weeks: `{age} week(s)`
 Age in in-game years: `{age // 4} year(s)`
+Birth Season: `{birth_season_key.title() if birth_season_key else "Unknown"}` {seasons.get(birth_season_key, "")}
 """,
             color=discord.Color.greyple(),
         )
@@ -61,17 +109,40 @@ Age in in-game years: `{age // 4} year(s)`
             inline=True,
         )
         embed.add_field(
-            name="Birthdate", value=birth_date.strftime("%d-%m-%Y"), inline=True
+            name="Birthdate",
+            value=f"{birth_date.strftime("%d-%m-%Y")}",
+            inline=True
         )
+
+        # if current_lifestage:
+        #     embed.add_field(name="Current Life-stage", value=current_lifestage["stage"], inline=False)
+
         embed.set_footer(text="Each in-game year is 4 weeks long.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     except ValueError as e:
-        await interaction.response.send_message(
-            "Invalid date format. Please use YYYY-MM-DD.", ephemeral=True
-        )
+        await interaction.response.send_message("Invalid date format. Please check that your inputs are actual dates!.", ephemeral=True)
         return
+
+# TODO: Uncomment once elder stuff is working
+# @calculate_age.autocomplete("species")
+async def species_autocomplete(_: Interaction, current: str) -> list[app_commands.Choice[str]]:
+    """
+    Autocomplete for species field in /calculate-age command
+    :param _: The discord interaction *(discarded)*
+    :param current: The current query
+    :return: An arroy of app_commands.Choice objects, limited to 25 results because discord does not allow more to be used in command choices
+    """
+    filtered = [
+        s for s in client.lifespans
+        if current.lower() in s["species"].lower()
+    ]
+
+    return [
+        app_commands.Choice(name=s["species"], value=s["species"].title())
+        for s in filtered[:25]
+    ]
 
 
 @client.tree.command(name="help", description="Lists all available commands")
