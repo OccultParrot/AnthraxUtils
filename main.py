@@ -52,21 +52,30 @@ async def calculate_age(interaction: Interaction, birthdate: str, species: app_c
             lifestages = spec["lifeStages"]
             break
     try:
+        print(f"Calculating age for {interaction.user.display_name}...")
+        shutdown_date = datetime.date(2025, 10, 12)
         birth_date = datetime.datetime.fromisoformat(birthdate).date()
         difference = abs((birth_date - datetime.date.today()).days)
+        if shutdown_date < datetime.date.today():
+            difference -= 15
         age = difference // 7
 
-        embed = Embed(title="Age of Dino", description=f"""\
+        embed = Embed(
+            title="Age of Dino",
+            description=f"""\
 Age in Weeks: `{age} week(s)`
 Age in in-game years: `{age // 4} year(s)`
-""", color=discord.Color.greyple())
-        embed.add_field(name="Today's Date", value=datetime.date.today().strftime("%d-%m-%Y"), inline=True)
-        embed.add_field(name="Birthdate", value=birth_date.strftime("%d-%m-%Y"), inline=True)
-        for stage in lifestages:
-            stage_name = stage["title"]
-            stage_age = stage["minAge"]
-            if age >= stage_age:
-                embed.add_field(name=f"Life Stage: {stage_name}", value=f"Reached at {stage_age} week(s)", inline=False)
+""",
+            color=discord.Color.greyple(),
+        )
+        embed.add_field(
+            name="Today's Date",
+            value=datetime.date.today().strftime("%d-%m-%Y"),
+            inline=True,
+        )
+        embed.add_field(
+            name="Birthdate", value=birth_date.strftime("%d-%m-%Y"), inline=True
+        )
         embed.set_footer(text="Each in-game year is 4 weeks long.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -74,6 +83,27 @@ Age in in-game years: `{age // 4} year(s)`
     except ValueError as e:
         await interaction.response.send_message("Invalid date format. Please use DD-MM-YYYY.", ephemeral=True)
         return
+
+
+@client.tree.command(name="help", description="Lists all available commands")
+async def help_command(interaction: Interaction):
+    embed = Embed(
+        title="AnthraxUtils Commands",
+        description="Here are all the commands available in AnthraxUtils!",
+        color=discord.Color.greyple(),
+    )
+    commands = {
+        "help": "... You are using it rn lol",
+        "calculate_age": "Calculates how old the dinosaur is from the given date.",
+    }
+
+    for name in commands:
+        embed.add_field(name=name, value=commands[name], inline=True)
+
+    embed.set_footer(
+        text="If you have any ideas for more quality of life commands, DM OccultParrot!"
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # == Running the bot ==
