@@ -1,8 +1,10 @@
 import os
 import datetime
+import json
 
 import discord
 from dotenv import load_dotenv
+from markdown_it.rules_core import inline
 from rich.console import Console
 from discord import Client, Intents, app_commands, Object, Interaction, Embed
 
@@ -15,6 +17,9 @@ class AnthraxUtilsClient(Client):
         intents = Intents.default()
         super().__init__(intents=intents)
 
+        self.lifespans = {}
+        self.load_configs()
+
         self.guild_id = Object(id=os.getenv("GUILD_ID"))
         self.tree = app_commands.CommandTree(self)
 
@@ -22,11 +27,16 @@ class AnthraxUtilsClient(Client):
         self.tree.copy_global_to(guild=self.guild_id)
         await self.tree.sync(guild=self.guild_id)
 
+    def load_configs(self):
+        with open("config/lifespans.json", "r") as f:
+            self.lifespans = json.load(f)
+        console.print(f"Loaded [yellow i]{len(self.lifespans)}[/] lifespan entries.", style="green")
+
 
 client = AnthraxUtilsClient()
 
 
-# == Add events and commands here! ==
+# == Add events and commands here! == 
 @client.event
 async def on_ready():
     console.print(f"Logged in as [green]{client.user.name}[/green]", justify="center")
@@ -128,6 +138,25 @@ Birth Season: `{birth_season_key.title() if birth_season_key else "Unknown"}` {s
     except ValueError as e:
         await interaction.response.send_message("Invalid date format. Please check that your inputs are actual dates!.", ephemeral=True)
         return
+
+# TODO: Uncomment once elder stuff is working
+# @calculate_age.autocomplete("species")
+async def species_autocomplete(_: Interaction, current: str) -> list[app_commands.Choice[str]]:
+    """
+    Autocomplete for species field in /calculate-age command
+    :param _: The discord interaction *(discarded)*
+    :param current: The current query
+    :return: An arroy of app_commands.Choice objects, limited to 25 results because discord does not allow more to be used in command choices
+    """
+    filtered = [
+        s for s in client.lifespans
+        if current.lower() in s["species"].lower()
+    ]
+
+    return [
+        app_commands.Choice(name=s["species"], value=s["species"].title())
+        for s in filtered[:25]
+    ]
 
 
 @client.tree.command(name="help", description="Lists all available commands")
