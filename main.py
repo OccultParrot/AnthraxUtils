@@ -29,6 +29,7 @@ class AnthraxUtilsClient(Client):
     def load_configs(self):
         with open("config/lifespans.json", "r") as f:
             self.lifespans = json.load(f)
+        console.print(f"Loaded [yellow i]{len(self.lifespans)}[/] lifespan entries.", style="green")
 
 
 client = AnthraxUtilsClient()
@@ -40,22 +41,30 @@ async def on_ready():
     console.print(f"Logged in as [green]{client.user.name}[/green]", justify="center")
 
 
+# TODO: Find cleaner way to select date, maybe 3 int inputs for day, month, year?
 @client.tree.command(name="calculate-age", description="Calculate the age of your dino, using their birthdate.")
-@app_commands.describe(birthdate="In YYYY-MM-DD format", species="Select the species")
-@app_commands.choices(species=[
-    app_commands.Choice(name=species["species"].title(), value=species["species"]) for species in client.lifespans
-])
-async def calculate_age(interaction: Interaction, birthdate: str, species: app_commands.Choice[str]):
+@app_commands.describe(day="The day the dinosaur was born", month="The month the dinosaur was born",
+                       year="The year the dinosaur was born", species="Select the species")
+async def calculate_age(interaction: Interaction, day: int, month: int, year: int, species: str):
+    # Getting the lifestages for the selected species.
     lifestages = []
     for spec in client.lifespans:
-        if spec["species"] == species.value:
+        if spec["species"].lower() == species.lower():
             lifestages = spec["lifeStages"]
             break
+
     try:
         print(f"Calculating age for {interaction.user.display_name}...")
+
+        # The date of the first shutdown event. TODO: Find better way to handle subtracting shutdowns, maybe a csv of shutdown end dates?
         shutdown_date = datetime.date(2025, 10, 12)
-        birth_date = datetime.datetime.fromisoformat(birthdate).date()
+
+        birth_date = datetime.datetime.fromisoformat(
+            f"{year}-{"0" + str(month) if month < 10 else month}-{"0" + str(day) if day < 10 else day}").date()
         difference = abs((birth_date - datetime.date.today()).days)
+        
+        # If the dino was born before the first shutdown, subtract 15 days from the age.
+        # TODO: Please improve this hacky solution. Maybe loop through the shutdown dates in a list and subtract accordingly? I feel bad using a magic number lol
         if shutdown_date < datetime.date.today():
             difference -= 15
         age = difference // 7
@@ -83,6 +92,25 @@ Age in in-game years: `{age // 4} year(s)`
     except ValueError as e:
         await interaction.response.send_message("Invalid date format. Please use DD-MM-YYYY.", ephemeral=True)
         return
+
+
+@calculate_age.autocomplete("species")
+async def species_autocomplete(_: Interaction, current: str) -> list[app_commands.Choice[str]]:
+    """
+    Autocomplete for species field in /calculate-age command
+    :param _: The discord interaction *(discarded)*
+    :param current: The current query
+    :return: An arroy of app_commands.Choice objects, limited to 25 results because discord does not allow more to be used in command choices
+    """
+    filtered = [
+        s for s in client.lifespans
+        if current.lower() in s["species"].lower()
+    ]
+
+    return [
+        app_commands.Choice(name=s["species"], value=s["species"].title())
+        for s in filtered[:25]
+    ]
 
 
 @client.tree.command(name="help", description="Lists all available commands")
