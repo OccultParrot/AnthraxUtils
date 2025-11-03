@@ -4,6 +4,7 @@ import json
 
 import discord
 from dotenv import load_dotenv
+from markdown_it.rules_core import inline
 from rich.console import Console
 from discord import Client, Intents, app_commands, Object, Interaction, Embed
 
@@ -42,16 +43,17 @@ async def on_ready():
 
 
 # TODO: Find cleaner way to select date, maybe 3 int inputs for day, month, year?
+# TODO: Add back species to the description and function declaration once elder stuff is done
 @client.tree.command(name="calculate-age", description="Calculate the age of your dino, using their birthdate.")
 @app_commands.describe(day="The day the dinosaur was born", month="The month the dinosaur was born",
-                       year="The year the dinosaur was born", species="Select the species")
-async def calculate_age(interaction: Interaction, day: int, month: int, year: int, species: str):
+                       year="The year the dinosaur was born")
+async def calculate_age(interaction: Interaction, day: int, month: int, year: int):
     # Getting the lifestages for the selected species.
-    lifestages = []
-    for spec in client.lifespans:
-        if spec["species"].lower() == species.lower():
-            lifestages = spec["lifeStages"]
-            break
+    # lifestages = []
+    # for spec in client.lifespans:
+    #     if spec["species"].lower() == species.lower():
+    #         lifestages = spec["lifeStages"]
+    #         break
 
     try:
         print(f"Calculating age for {interaction.user.display_name}...")
@@ -60,20 +62,58 @@ async def calculate_age(interaction: Interaction, day: int, month: int, year: in
         shutdown_date = datetime.date(2025, 10, 12)
 
         birth_date = datetime.datetime.fromisoformat(
-            f"{year}-{"0" + str(month) if month < 10 else month}-{"0" + str(day) if day < 10 else day}").date()
-        difference = abs((birth_date - datetime.date.today()).days)
-        
+            f"{year}-{"0" + str(month) if month < 10 else month}-{"0" + str(day) if day < 10 else day}")
+        difference = (datetime.date.today() - birth_date.date()).days
+
+        # Check if birthdate is in the future
+        if difference < 0:
+            await interaction.response.send_message("Birth date cannot be in the future!", ephemeral=True)
+            return
+
         # If the dino was born before the first shutdown, subtract 15 days from the age.
         # TODO: Please improve this hacky solution. Maybe loop through the shutdown dates in a list and subtract accordingly? I feel bad using a magic number lol
-        if shutdown_date < datetime.date.today():
+        if shutdown_date > datetime.date.today():
             difference -= 15
         age = difference // 7
 
+        # current_lifestage = None
+        # for stage in lifestages:
+        #     if age >= stage["minAge"]:
+        #         current_lifestage = stage
+
+        # Section for checking what season the dino was born in.
+        birth_season_key = None
+        seasons = {
+            "spring": ":cherry_blossom:",
+            "summer": ":sun:",
+            "autumn": ":maple_leaf:",
+            "fall": ":maple_leaf:",
+            "winter": ":snowflake:",
+        }
+        # Snagging the 20 messages
+        try:
+            async for message in client.get_guild(1374722200053088306).get_channel(1383845771232678071).history(limit=20, around=birth_date):
+                # If the message date is within 1 day of the birthdate, check for season keywords
+                if abs((message.created_at.date() - birth_date.date()).days) <= 1:
+                    for key in seasons.keys():
+                        if key in message.content.lower():
+                            birth_season_key = key
+                            break
+                    # Break outta the loop once we have our first match
+                    if birth_season_key:
+                        break
+        # To catch discord errors (Things like impossible dates, etc.) Will just default to "Unknown" if error occurs.
+        except Exception as e:
+            print(f"Error fetching birth season messages: {e}")
+
+
         embed = Embed(
-            title="Age of Dino",
+            # title=f"{current_lifestage["stage"] + " " if current_lifestage else ""}{species.title()}'s Age",
+            title=f"Dinosaur's Age",
             description=f"""\
 Age in Weeks: `{age} week(s)`
 Age in in-game years: `{age // 4} year(s)`
+Birth Season: `{birth_season_key.title() if birth_season_key else "Unknown"}` {seasons.get(birth_season_key, "")}
 """,
             color=discord.Color.greyple(),
         )
@@ -83,18 +123,24 @@ Age in in-game years: `{age // 4} year(s)`
             inline=True,
         )
         embed.add_field(
-            name="Birthdate", value=birth_date.strftime("%d-%m-%Y"), inline=True
+            name="Birthdate",
+            value=f"{birth_date.strftime("%d-%m-%Y")}",
+            inline=True
         )
+
+        # if current_lifestage:
+        #     embed.add_field(name="Current Life-stage", value=current_lifestage["stage"], inline=False)
+
         embed.set_footer(text="Each in-game year is 4 weeks long.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     except ValueError as e:
-        await interaction.response.send_message("Invalid date format. Please use DD-MM-YYYY.", ephemeral=True)
+        await interaction.response.send_message("Invalid date format. Please check that your inputs are actual dates!.", ephemeral=True)
         return
 
-
-@calculate_age.autocomplete("species")
+# TODO: Uncomment once elder stuff is working
+# @calculate_age.autocomplete("species")
 async def species_autocomplete(_: Interaction, current: str) -> list[app_commands.Choice[str]]:
     """
     Autocomplete for species field in /calculate-age command
