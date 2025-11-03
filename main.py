@@ -43,7 +43,7 @@ async def calculate_age(interaction: Interaction, birthdate: str):
     try:
         birth_date = datetime.datetime.fromisoformat(birthdate).date()
         difference = abs((birth_date - datetime.date.today()).days)
-        if shutdown_date < datetime.date.today():
+        if shutdown_date > datetime.date.today():
             difference -= 15
         age = difference // 7
 
