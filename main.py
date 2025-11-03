@@ -56,22 +56,8 @@ async def calculate_age(interaction: Interaction, day: int, month: int, year: in
     #         break
 
     try:
-        print(f"Calculating age for {interaction.user.display_name}...")
-
-        # The date of the first shutdown event. TODO: Find better way to handle subtracting shutdowns, maybe a csv of shutdown end dates?
-        shutdown_date = datetime.date(2025, 10, 12)
-
-        birth_date = datetime.datetime.fromisoformat(
-            f"{year}-{"0" + str(month) if month < 10 else month}-{"0" + str(day) if day < 10 else day}")
-        difference = (datetime.date.today() - birth_date.date()).days
-
-        # Check if birthdate is in the future
-        if difference < 0:
-            await interaction.response.send_message("Birth date cannot be in the future!", ephemeral=True)
-            return
-
-        # If the dino was born before the first shutdown, subtract 15 days from the age.
-        # TODO: Please improve this hacky solution. Maybe loop through the shutdown dates in a list and subtract accordingly? I feel bad using a magic number lol
+        birth_date = datetime.datetime.fromisoformat(birthdate).date()
+        difference = abs((birth_date - datetime.date.today()).days)
         if shutdown_date > datetime.date.today():
             difference -= 15
         age = difference // 7
