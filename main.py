@@ -321,6 +321,10 @@ async def create_sticky_message(content: str, interaction: Interaction):
 @client.tree.command(name="remove-sticky", description="Removes selected sticky message from the channel.")
 @app_commands.describe(message_id="The ID of the sticky message to remove")
 async def remove_sticky(interaction: Interaction, message_id: str):
+    if not (interaction.user.guild_permissions.administrator or interaction.user.id == 767047725333086209):
+        await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+        return
+
     message_id = int(message_id)
     await interaction.response.send_message("Removing sticky message...", ephemeral=True)
     message = await interaction.channel.fetch_message(message_id)
