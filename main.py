@@ -24,12 +24,11 @@ class AnthraxUtilsClient(Client):
         self.lifespans = {}
         self.load_configs()
 
-        self.guild_id = Object(id=os.getenv("GUILD_ID"))
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self) -> None:
-        self.tree.copy_global_to(guild=self.guild_id)
-        await self.tree.sync(guild=self.guild_id)
+        await self.tree.sync()
+        console.print("Commands synced globally", style="green")
 
     def load_configs(self):
         with open("config/lifespans.json", "r") as f:
