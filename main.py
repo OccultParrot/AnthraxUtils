@@ -301,6 +301,10 @@ async def help_command(interaction: Interaction):
 
 @client.tree.command(name="make-sticky", description="Creates a message that stays on the bottom of the discord chat.")
 async def make_sticky(interaction: Interaction):
+    if not (interaction.user.guild_permissions.administrator or interaction.user.id == 767047725333086209):
+        await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+        return
+
     await interaction.response.send_modal(StickyModal(create_sticky_message))
 
 
