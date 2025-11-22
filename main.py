@@ -1,15 +1,18 @@
-import os
 import datetime
 import json
+import os
 
 import discord
-from dotenv import load_dotenv
-from markdown_it.rules_core import inline
-from rich.console import Console
 from discord import Client, Intents, app_commands, Object, Interaction, Embed, Message
+from dotenv import load_dotenv
+import asyncio
+from rich.console import Console
+from supabase import Client as SupabaseClient
 
 load_dotenv()
 console = Console()
+
+CACHE_REFRESH_INTERVAL = 300  # seconds
 
 
 class AnthraxUtilsClient(Client):
@@ -33,21 +36,144 @@ class AnthraxUtilsClient(Client):
             self.lifespans = json.load(f)
         console.print(f"Loaded [yellow i]{len(self.lifespans)}[/] lifespan entries.", style="green")
 
+    async def refresh_cache(self):
+        pass
+
+
+class StickyModal(discord.ui.Modal):
+    def __init__(self, callback):
+        super().__init__(title="Create Sticky Message")
+        self.content = discord.ui.TextInput(label="Message Content", style=discord.TextStyle.paragraph, required=True,
+                                            max_length=2000)
+        self.add_item(self.content)
+        self.callback = callback
+
+    async def on_submit(self, interaction: Interaction, /) -> None:
+        await self.callback(self.content.value, interaction)
+
+
+class DBClient(SupabaseClient):
+    listened_channels: list[int] = []
+    stickied_messages: list = []
+
+    def __init__(self):
+        # Setting up database connection
+        url: str = os.getenv("SUPABASE_URL")
+        key: str = os.getenv("SUPABASE_KEY")
+        super().__init__(url, key)
+
+        self.refresh_cache()
+
+    async def start_cache_refresh(self):
+        asyncio.create_task(self.refresh_cache_task())
+
+    async def refresh_cache_task(self):
+        print("Starting cache refresh task...")
+        while True:
+            console.log("Refreshing cache...")
+            self.refresh_cache()
+            await asyncio.sleep(CACHE_REFRESH_INTERVAL)  # Refresh every 60 seconds
+
+    def refresh_cache(self):
+        self.listened_channels = self.fetch_listened_channels()
+        self.stickied_messages = self.fetch_sticky_messages()
+
+    def fetch_sticky_messages(self):
+        try:
+            data = self.table("sticky_messages").select("*").execute()
+            return data.data
+        except Exception as e:
+            console.print(f"Error fetching sticky messages: {e}", style="red")
+            return []
+
+    def fetch_listened_channels(self):
+        try:
+            data = self.fetch_sticky_messages()
+            return list(set([msg["channel_id"] for msg in data]))
+        except Exception as e:
+            console.print(f"Error fetching listened channels: {e}", style="red")
+            return []
+
+    def post_sticky_message(self, message_id: int, channel_id: int, guild_id: int, content: str):
+        try:
+            data = {
+                "message_id": message_id,
+                "channel_id": channel_id,
+                "guild_id": guild_id,
+                "content": content
+            }
+            response = self.table("sticky_messages").insert(data).execute()
+            return response.data
+        except Exception as e:
+            console.print(f"Error posting sticky message: {e}", style="red")
+            return None
+
+    def refresh_sticky_message(self, old_id: int, new_id: int):
+        try:
+            response = self.table("sticky_messages").update({"message_id": new_id}).eq("message_id", old_id).execute()
+            return response.data
+        except Exception as e:
+            console.print(f"Error refreshing sticky message: {e}", style="red")
+            return None
+
+    def delete_sticky_message(self, message_id: int):
+        try:
+            response = self.table("sticky_messages").delete().eq("message_id", message_id).execute()
+            return response.data
+        except Exception as e:
+            console.print(f"Error deleting sticky message: {e}", style="red")
+            return None
+
 
 client = AnthraxUtilsClient()
+db_client = DBClient()
 
 
-# == Add events and commands here! == 
+# == Add events and commands here! ==
 @client.event
 async def on_ready():
     console.print(f"Logged in as [green]{client.user.name}[/green]", justify="center")
+    await db_client.start_cache_refresh()
+
+    for sticky in db_client.stickied_messages:
+        try:
+            channel = client.get_channel(sticky["channel_id"])
+            message = await channel.fetch_message(sticky["message_id"])
+            old_id = message.id
+            await message.delete()
+
+            # Sending new sticky message
+            new_message = await channel.send(sticky["content"])
+
+            # Update DB and cache
+            db_client.refresh_sticky_message(old_id, new_message.id)
+            db_client.refresh_cache()
+        except Exception as e:
+            console.print(
+                f"Error in refreshing sticky message ID {sticky['message_id']} in channel ID {sticky['channel_id']}: {e}",
+                style="red")
+
 
 @client.event
 async def on_message(message: Message):
-    if message.author.id == 767047725333086209:
-        if "what commands" in message.content.lower():
-            help_msg = help_embed()
-            await message.channel.send(embed=help_msg)
+    if message.author.id == client.user.id:
+        return
+
+    if message.channel.id in db_client.listened_channels:
+        for sticky in db_client.stickied_messages:
+            if sticky["channel_id"] == message.channel.id:
+                # Getting old message and deleting it
+                old_message = await message.channel.fetch_message(sticky["message_id"])
+                old_id = old_message.id
+                await old_message.delete()
+
+                # Sending new sticky message
+                new_message = await message.channel.send(sticky["content"])
+
+                # Update DB and cache
+                db_client.refresh_sticky_message(old_id, new_message.id)
+                db_client.refresh_cache()
+
 
 # TODO: Find cleaner way to select date, maybe 3 int inputs for day, month, year?
 # TODO: Add back species to the description and function declaration once elder stuff is done
@@ -171,6 +297,48 @@ async def species_autocomplete(_: Interaction, current: str) -> list[app_command
 @client.tree.command(name="help", description="Lists all available commands")
 async def help_command(interaction: Interaction):
     await interaction.response.send_message(embed=help_embed(), ephemeral=True)
+
+
+@client.tree.command(name="make-sticky", description="Creates a message that stays on the bottom of the discord chat.")
+async def make_sticky(interaction: Interaction):
+    await interaction.response.send_modal(StickyModal(create_sticky_message))
+
+
+async def create_sticky_message(content: str, interaction: Interaction):
+    guild_id = interaction.guild.id
+    channel_id = interaction.channel.id
+    sticky_msg = await interaction.channel.send(content)
+    db_client.post_sticky_message(sticky_msg.id, channel_id, guild_id, content)
+    db_client.refresh_cache()
+
+    await interaction.response.send_message("Sticky message created!", ephemeral=True)
+
+
+@client.tree.command(name="remove-sticky", description="Removes selected sticky message from the channel.")
+@app_commands.describe(message_id="The ID of the sticky message to remove")
+async def remove_sticky(interaction: Interaction, message_id: str):
+    message_id = int(message_id)
+    await interaction.response.send_message("Removing sticky message...", ephemeral=True)
+    message = await interaction.channel.fetch_message(message_id)
+    await message.delete()
+    db_client.delete_sticky_message(message_id)
+    db_client.refresh_cache()
+
+    await interaction.edit_original_response(content="Sticky message removed!")
+
+
+@remove_sticky.autocomplete("message_id")
+async def remove_sticky_autocomplete(interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+    filtered = [
+        s for s in db_client.stickied_messages
+        if str(s["message_id"]).startswith(current) and s["channel_id"] == interaction.channel.id
+    ]
+    return [
+        app_commands.Choice(
+            name=f"ID: {s['message_id']} | Content: {s['content'][:30]}{"..." if len(s['content']) > 30 else ""}",
+            value=str(s["message_id"]))
+        for s in filtered[:25]
+    ]
 
 
 def help_embed():
