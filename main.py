@@ -2,8 +2,9 @@ import datetime
 import json
 import os
 
+from typing import Literal
 import discord
-from discord import Client, Intents, app_commands, Object, Interaction, Embed, Message
+from discord import Client, Intents, app_commands, Object, Interaction, Embed, Message, Member
 from dotenv import load_dotenv
 import asyncio
 from rich.console import Console
@@ -126,6 +127,18 @@ class DBClient(SupabaseClient):
 
 client = AnthraxUtilsClient()
 db_client = DBClient()
+
+
+async def log_command_usage(command_name: str, user: Member, status: Literal["success", "Error", "Not Allowed"]):
+    embed = Embed(title=f"`/{command_name}` Used",
+                  color=discord.Color.green() if status == "success" else discord.Color.red() if status == "Error" else discord.Color.purple())
+    embed.add_field(name="User", value=f"{user.display_name} ({user.id})", inline=False)
+    embed.add_field(name=f"{user.display_name}'s Roles",
+                    value=", ".join([role.name for role in user.roles if role.name != "@everyone"]), inline=False)
+    embed.add_field(name="Timestamp", value=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
+    embed.add_field(name="Status", value=status, inline=False)
+
+    await client.get_channel(1437913445780557835).send(embed=embed)
 
 
 # == Add events and commands here! ==
@@ -266,10 +279,13 @@ Birth Season: `{birth_season_key.title() if birth_season_key else "Unknown"}` {s
         embed.set_footer(text="Each in-game year is 4 weeks long.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+        await log_command_usage("calculate-age", interaction.user, "success")
+
 
     except ValueError as e:
         await interaction.response.send_message("Invalid date format. Please check that your inputs are actual dates!.",
                                                 ephemeral=True)
+        await log_command_usage("calculate-age", interaction.user, "Error")
         return
 
 
@@ -296,12 +312,14 @@ async def species_autocomplete(_: Interaction, current: str) -> list[app_command
 @client.tree.command(name="help", description="Lists all available commands")
 async def help_command(interaction: Interaction):
     await interaction.response.send_message(embed=help_embed(), ephemeral=True)
+    await log_command_usage("help", interaction.user, "success")
 
 
 @client.tree.command(name="make-sticky", description="Creates a message that stays on the bottom of the discord chat.")
 async def make_sticky(interaction: Interaction):
     if not (interaction.user.guild_permissions.administrator or interaction.user.id == 767047725333086209):
         await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+        await log_command_usage("make-sticky", interaction.user, "Not Allowed")
         return
 
     await interaction.response.send_modal(StickyModal(create_sticky_message))
@@ -315,6 +333,7 @@ async def create_sticky_message(content: str, interaction: Interaction):
     db_client.refresh_cache()
 
     await interaction.response.send_message("Sticky message created!", ephemeral=True)
+    await log_command_usage("make-sticky", interaction.user, "success")
 
 
 @client.tree.command(name="remove-sticky", description="Removes selected sticky message from the channel.")
@@ -322,6 +341,7 @@ async def create_sticky_message(content: str, interaction: Interaction):
 async def remove_sticky(interaction: Interaction, message_id: str):
     if not (interaction.user.guild_permissions.administrator or interaction.user.id == 767047725333086209):
         await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+        await log_command_usage("remove-sticky", interaction.user, "Not Allowed")
         return
 
     message_id = int(message_id)
@@ -332,6 +352,7 @@ async def remove_sticky(interaction: Interaction, message_id: str):
     db_client.refresh_cache()
 
     await interaction.edit_original_response(content="Sticky message removed!")
+    await log_command_usage("remove-sticky", interaction.user, "success")
 
 
 @remove_sticky.autocomplete("message_id")
