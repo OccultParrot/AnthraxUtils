@@ -180,7 +180,7 @@ async def on_message(message: Message):
                 await old_message.delete()
 
                 # Sending new sticky message
-                new_message = await message.channel.send(sticky["content"])
+                new_message = await message.channel.send(sticky["content"] + "\n-# This is a sticky message.")
 
                 # Update DB and cache
                 db_client.refresh_sticky_message(old_id, new_message.id)
@@ -328,7 +328,7 @@ async def make_sticky(interaction: Interaction):
 async def create_sticky_message(content: str, interaction: Interaction):
     guild_id = interaction.guild.id
     channel_id = interaction.channel.id
-    sticky_msg = await interaction.channel.send(content)
+    sticky_msg = await interaction.channel.send(content + "\n-# This is a sticky message.")
     db_client.post_sticky_message(sticky_msg.id, channel_id, guild_id, content)
     db_client.refresh_cache()
 
